@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Define types for our data
 interface LogFile {
@@ -23,10 +23,22 @@ export default function Home() {
   const [selectedLog, setSelectedLog] = useState<LogFile | null>(null);
   const [logContent, setLogContent] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalLines, setTotalLines] = useState(0); // We might not know this upfront
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineNumberInput, setLineNumberInput] = useState('');
+  const [hasMore, setHasMore] = useState(true);
+
+  const observer = useRef<IntersectionObserver>();
+  const lastLogElementRef = useCallback((node: HTMLDivElement) => {
+    if (isLoading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        setCurrentPage(prevPage => prevPage + 1);
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [isLoading, hasMore]);
 
   // Fetch the list of logs
   useEffect(() => {
@@ -45,11 +57,11 @@ export default function Home() {
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
       }
     };
-
     fetchLogs();
   }, []);
 
-  const fetchLogContent = useCallback(async (filename: string, startLine: number) => {
+  // Define fetchLogContent using useCallback to memoize it
+  const fetchLogContent = useCallback(async (filename: string, startLine: number, clearContent: boolean) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -60,61 +72,49 @@ export default function Home() {
       }
       const text = await response.text();
       const lines = text.split('\n');
-      setLogContent(lines);
-      // This is an approximation of total lines. For accurate total lines, the API would need to provide it.
-      if (lines.length < LINES_PER_PAGE) {
-        setTotalLines((currentPage - 1) * LINES_PER_PAGE + lines.length);
-      } else {
-        // We don't know the end, so just allow going to the next page
-        setTotalLines((currentPage) * LINES_PER_PAGE + 1);
+      
+      if (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
       }
+      
+      setLogContent(prevContent => clearContent ? lines : [...prevContent, ...lines]);
+      setHasMore(lines.length === LINES_PER_PAGE);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
       setLogContent([]);
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage]);
+  }, []); // Empty dependency array as it has no external dependencies from props or state
 
   // Effect to fetch content when selected log or page changes
   useEffect(() => {
     if (selectedLog) {
-      const startLine = (currentPage - 1) * LINES_PER_PAGE + 1;
-      fetchLogContent(selectedLog.filename, startLine);
+        const startLine = (currentPage - 1) * LINES_PER_PAGE + 1;
+        fetchLogContent(selectedLog.filename, startLine, currentPage === 1);
     }
   }, [selectedLog, currentPage, fetchLogContent]);
 
   const handleLogSelect = (log: LogFile) => {
     setSelectedLog(log);
     setCurrentPage(1);
-    setTotalLines(0);
     setLogContent([]);
     setLineNumberInput('');
+    setHasMore(true);
   };
 
   const handleGoToLine = () => {
     const line = parseInt(lineNumberInput, 10);
     if (!isNaN(line) && line > 0) {
+      setLogContent([]);
       setCurrentPage(Math.floor((line - 1) / LINES_PER_PAGE) + 1);
-    }
-  };
-
-  const totalPages = selectedLog ? Math.ceil(totalLines / LINES_PER_PAGE) : 0;
-  
-  const handlePrevPage = () => {
-    setCurrentPage(p => Math.max(1, p - 1));
-  };
-
-  const handleNextPage = () => {
-    if (logContent.length >= LINES_PER_PAGE) {
-       setCurrentPage(p => p + 1);
     }
   };
 
   return (
     <div className="flex h-screen bg-gray-100 font-sans">
-      {/* Sidebar */}
-      <aside className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
         <div className="p-4 border-b border-gray-200">
           <h1 className="text-xl font-semibold">Build Logs</h1>
         </div>
@@ -122,21 +122,26 @@ export default function Home() {
           {error && <div className="text-red-500 text-sm mb-4">Error: {error}</div>}
           <ul>
             {logs.map((log) => (
-              <li key={log.filename} 
-                  className={`p-2 rounded-md cursor-pointer text-sm mb-1 ${selectedLog?.filename === log.filename ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'}`}
-                  onClick={() => handleLogSelect(log)}>
-                <div className="font-medium">{log.name}</div>
-                <div className="text-xs text-gray-500">{new Date(log.modified * 1000).toLocaleString()}</div>
-                <div className="text-xs text-gray-500">{(log.size / 1024).toFixed(2)} KB</div>
+              <li
+                key={log.filename}
+                className={`p-3 rounded-lg cursor-pointer text-sm mb-3 transition-all ${
+                  selectedLog?.filename === log.filename
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'hover:bg-gray-200'
+                }`}
+                onClick={() => handleLogSelect(log)}
+              >
+                <div className="font-semibold">{log.name}</div>
+                <div className={`text-xs ${selectedLog?.filename === log.filename ? 'text-white' : 'text-gray-700'}`}>{new Date(log.modified * 1000).toLocaleString()}</div>
+                <div className={`text-xs ${selectedLog?.filename === log.filename ? 'text-white' : 'text-gray-700'}`}>{(log.size / 1024).toFixed(2)} KB</div>
               </li>
             ))}
           </ul>
         </nav>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+      <main className="flex-1 flex flex-col min-w-0">
+        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
           <h2 className="text-lg font-semibold">{selectedLog ? selectedLog.name : 'Select a log to view'}</h2>
           {selectedLog && (
              <div className="flex items-center">
@@ -153,40 +158,37 @@ export default function Home() {
           )}
         </header>
         
-        <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
-           <pre id="log-content" className="bg-gray-900 text-white p-4 rounded-md text-sm overflow-x-auto h-full">
-                <code className="font-mono">
-                  {isLoading && <div className="animate-pulse">Loading log content...</div>}
-                  {!isLoading && logContent.length > 0 && 
-                    logContent.map((line, index) => {
-                      const lineNumber = (currentPage - 1) * LINES_PER_PAGE + index + 1;
-                      return (
-                        <div key={index} className="flex">
-                          <span className="w-12 text-gray-500 text-right pr-4 select-none">{lineNumber}</span>
-                          <span>{line}</span>
-                        </div>
-                      )
-                    })
-                  }
-                  {!isLoading && !selectedLog && <div>Please select a log file from the list on the left.</div>}
-                  {!isLoading && selectedLog && logContent.length === 0 && <div>No content to display for this log.</div>}
-                </code>
-            </pre>
+        <div className="flex-1 min-h-0 p-4 bg-gray-50 flex flex-col">
+          <pre
+            id="log-content"
+            className="bg-gray-900 text-white p-4 rounded-lg text-sm flex-1 overflow-y-scroll overflow-x-auto leading-relaxed border border-gray-300 shadow-inner"
+          >
+            <code className="font-mono">
+              {logContent.map((line, index) => {
+                const isLastElement = index === logContent.length - 1;
+                const lineNumber = (currentPage - 1) * LINES_PER_PAGE + index + 1;
+                if (isLastElement) {
+                  return (
+                    <div ref={lastLogElementRef} key={lineNumber} className="flex">
+                      <span className="w-16 text-right pr-4 text-gray-400 select-none font-mono">{lineNumber}</span>
+                      <span className="flex-1 font-mono break-all">{line}</span>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div key={lineNumber} className="flex">
+                      <span className="w-16 text-right pr-4 text-gray-400 select-none font-mono">{lineNumber}</span>
+                      <span className="flex-1 font-mono break-all">{line}</span>
+                    </div>
+                  );
+                }
+              })}
+              {isLoading && <div className="animate-pulse p-4">Loading more lines...</div>}
+              {!isLoading && !selectedLog && <div className="p-4">Please select a log file from the list on the left.</div>}
+              {!isLoading && selectedLog && logContent.length === 0 && !hasMore && <div className="p-4">No content to display for this log.</div>}
+            </code>
+          </pre>
         </div>
-
-        {selectedLog && (
-          <footer className="bg-white border-t border-gray-200 p-2 flex justify-center items-center">
-            <button onClick={handlePrevPage} disabled={currentPage === 1} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              Previous
-            </button>
-            <span className="text-sm text-gray-700 mx-4">
-              Page {currentPage}
-            </span>
-            <button onClick={handleNextPage} disabled={logContent.length < LINES_PER_PAGE} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              Next
-            </button>
-          </footer>
-        )}
       </main>
     </div>
   );
