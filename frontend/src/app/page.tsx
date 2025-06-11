@@ -25,7 +25,6 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lineNumberInput, setLineNumberInput] = useState('');
   const [hasMore, setHasMore] = useState(true);
 
   const observer = useRef<IntersectionObserver>();
@@ -100,16 +99,7 @@ export default function Home() {
     setSelectedLog(log);
     setCurrentPage(1);
     setLogContent([]);
-    setLineNumberInput('');
     setHasMore(true);
-  };
-
-  const handleGoToLine = () => {
-    const line = parseInt(lineNumberInput, 10);
-    if (!isNaN(line) && line > 0) {
-      setLogContent([]);
-      setCurrentPage(Math.floor((line - 1) / LINES_PER_PAGE) + 1);
-    }
   };
 
   return (
@@ -143,19 +133,6 @@ export default function Home() {
       <main className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
           <h2 className="text-lg font-semibold">{selectedLog ? selectedLog.name : 'Select a log to view'}</h2>
-          {selectedLog && (
-             <div className="flex items-center">
-                <input
-                    type="number"
-                    value={lineNumberInput}
-                    onChange={(e) => setLineNumberInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleGoToLine()}
-                    placeholder="Go to line..."
-                    className="px-2 py-1 border border-gray-300 rounded-md text-sm w-32"
-                />
-                <button onClick={handleGoToLine} className="ml-2 px-4 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600">Go</button>
-            </div>
-          )}
         </header>
         
         <div className="flex-1 min-h-0 p-4 bg-gray-50 flex flex-col">
