@@ -25,6 +25,7 @@ docker compose up -d
 This will start both the frontend and backend services:
 - Frontend will be available at http://localhost:3000
 - Backend will be available at http://localhost:8000
+- Backend Swagger UI will be available at http://localhost:8000/docs
 
 ## Development
 
