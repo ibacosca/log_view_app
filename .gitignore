@@ -1,2 +1,2 @@
-build_log_examples/*
+build_log_examples/*.txt
 .DS_Store
