@@ -169,16 +169,23 @@ export default function Home() {
                 const lineNumber = (currentPage - 1) * LINES_PER_PAGE + index + 1;
                 if (isLastElement) {
                   return (
-                    <div ref={lastLogElementRef} key={lineNumber} className="flex">
+                    <div
+                      ref={isLastElement ? lastLogElementRef : undefined}
+                      key={lineNumber}
+                      className="flex items-start"
+                    >
                       <span className="w-16 text-right pr-4 text-gray-400 select-none font-mono">{lineNumber}</span>
-                      <span className="flex-1 font-mono break-all">{line}</span>
+                      <span className="flex-1 font-mono break-all whitespace-pre-wrap">{line}</span>
                     </div>
                   );
                 } else {
                   return (
-                    <div key={lineNumber} className="flex">
+                    <div
+                      key={lineNumber}
+                      className="flex items-start"
+                    >
                       <span className="w-16 text-right pr-4 text-gray-400 select-none font-mono">{lineNumber}</span>
-                      <span className="flex-1 font-mono break-all">{line}</span>
+                      <span className="flex-1 font-mono break-all whitespace-pre-wrap">{line}</span>
                     </div>
                   );
                 }
