@@ -15,7 +15,9 @@ git clone <repository-url>
 cd build_log_view
 ```
 
-2. Start the application using Docker Compose:
+2. **Important:** Add your build log files to the `build_log_examples` directory   
+
+3. Start the application using Docker Compose:
 ```bash
 docker compose up -d
 ```
