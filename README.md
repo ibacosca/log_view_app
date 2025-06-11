@@ -11,8 +11,8 @@ A web application for viewing build logs with a frontend and backend service.
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd build_log_view
+git clone git@github.com:ibacosca/log_view_app.git
+cd log_view_app
 ```
 
 2. **Important:** Add your build log files to the `build_log_examples` directory   
